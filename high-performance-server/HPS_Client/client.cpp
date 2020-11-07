@@ -4,8 +4,12 @@
 #include <windows.h>
 #include <WinSock2.h>
 #include <stdio.h>
+#include <thread>
 
+using namespace std;
 #pragma comment(lib,"ws2_32.lib") 
+
+static bool g_exit_flag = true;
 
 enum CMD
 {
@@ -140,6 +144,23 @@ static int processor(int fd)
 	}
 	return 0;
 }
+void cmd_thread(int fd)
+{
+	char cmd[256] = {0};
+	while (NULL != fgets(cmd, sizeof(cmd), stdin)) {
+		if (0 == strncmp(cmd, "exit",strlen("exit"))) {
+			g_exit_flag = false;
+			printf("客户端线程退出\n");
+			break;
+		}
+		if (0 == strncmp(cmd, "login",strlen("login"))) {
+			hps_login login;
+			strcpy(login.user,"yangzhichao");
+			strcpy(login.password, "sunyan");
+			send(fd,(char *)&login,sizeof(login),0);
+		}
+	}
+}
 int main(int argc, char * argv[])
 {
 	WORD ver = MAKEWORD(2, 2);
@@ -169,7 +190,11 @@ int main(int argc, char * argv[])
 	fd_set write_fds;
 	fd_set except_fds;
 	struct timeval tv = {1,0};
-	while (true) {
+
+	thread td(cmd_thread,_sock);
+	td.detach();
+
+	while (g_exit_flag) {
 		FD_ZERO(&read_fds);
 		FD_ZERO(&write_fds);
 		FD_ZERO(&except_fds);
