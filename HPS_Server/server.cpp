@@ -30,6 +30,8 @@ struct hps_login:public hps_data_header
 	hps_login() {
 		cmd = CMD_LOGIN;
 		datalen = sizeof(hps_login);
+		memset(user,0x00,sizeof(user));
+		memset(password, 0x00, sizeof(password));
 	}
 	char user[32];
 	char password[32];
@@ -180,13 +182,13 @@ int main(int argc, char * argv[])
 		closesocket(_sock);
 	}
 	else{
-		printf("listen is success fd : %d\n",_sock);
+		printf("listen is success fd : %d\n",(int)_sock);
 	}
 	char  * msg = "hello client\n";
 	struct sockaddr_in client_addr;
 	memset(&client_addr,0x00,sizeof(client_addr));
 	int socklen_t = sizeof(struct sockaddr_in);
-	int max_fd = _sock;
+	int max_fd = (int)_sock;
 	struct timeval tv = { 1,0 };
 	fd_set read_fds;
 	fd_set write_fds;
@@ -209,8 +211,8 @@ int main(int argc, char * argv[])
 		}
 		if (FD_ISSET(_sock,&read_fds)) {
 			// 判断是否是 connect 连接
-			int connect_sock = INVALID_SOCKET;
-			connect_sock = accept(_sock, (struct sockaddr *)&client_addr, &socklen_t);
+			int connect_sock = (int)INVALID_SOCKET;
+			connect_sock = (int)accept(_sock, (struct sockaddr *)&client_addr, &socklen_t);
 			if (SOCKET_ERROR == connect_sock) {
 				printf("accept is ERR\n");
 			}
@@ -238,7 +240,7 @@ int main(int argc, char * argv[])
 				}
 			}
 		}
-		printf("空闲时间处理其他事务\n");
+		printf("空闲时间处理其他任务\n");
 	}
 	for (unsigned int i = 0; i < fds_set.size(); i++) {
 		closesocket(fds_set[i]);

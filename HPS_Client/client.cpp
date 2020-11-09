@@ -1,13 +1,29 @@
-#define WIN32_LEAN_AND_MEAN //屏蔽了很多原有的定义，因为下面两个头文件冲突
-#define _WINSOCK_DEPRECATED_NO_WARNINGS //inet_ntoa 在新的socket通信中要使用inet_ntoa，就必须声明此宏
-#define _CRT_SECURE_NO_WARNINGS
-#include <windows.h>
-#include <WinSock2.h>
+#ifdef _WIN32
+	#define WIN32_LEAN_AND_MEAN //屏蔽了很多原有的定义，因为下面两个头文件冲突
+	#define _WINSOCK_DEPRECATED_NO_WARNINGS //inet_ntoa 在新的socket通信中要使用inet_ntoa，就必须声明此宏
+	#define _CRT_SECURE_NO_WARNINGS
+	#include <windows.h>
+	#include <WinSock2.h>
+	#include <stdio.h>
+	#pragma comment(lib,"ws2_32.lib") 
+#else
+	#include <unistd.h>
+	#include <sys/types.h>
+	#include <sys/socket.h>
+	#include <arpa/inet.h>
+	#include <netinet/in.h>
+	#include <sys/select.h>
+	#define SOCKET	int
+	#define INVALID_SOCKET  (SOCKET)(~0)
+	#define SOCKET_ERROR            (-1)
+#endif /* _WIN32 */
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 #include <thread>
 
+
 using namespace std;
-#pragma comment(lib,"ws2_32.lib") 
 
 static bool g_exit_flag = true;
 
@@ -107,7 +123,7 @@ static int processor(int fd)
 	memset(&header, 0x00, sizeof(header));
 	ret = recv(fd, (char *)&header, sizeof(header), 0);
 	if (ret <= 0) {
-		printf("客户端退出，任务结束 fd: %d\n", fd);
+		printf("The client exits and the task ends fd: %d\n", fd);
 		return -1;
 	}
 	switch (header.cmd) {
@@ -150,7 +166,7 @@ void cmd_thread(int fd)
 	while (NULL != fgets(cmd, sizeof(cmd), stdin)) {
 		if (0 == strncmp(cmd, "exit",strlen("exit"))) {
 			g_exit_flag = false;
-			printf("客户端线程退出\n");
+			printf("Client thread exit\n");
 			break;
 		}
 		if (0 == strncmp(cmd, "login",strlen("login"))) {
@@ -163,35 +179,47 @@ void cmd_thread(int fd)
 }
 int main(int argc, char * argv[])
 {
+#ifdef _WIN32
 	WORD ver = MAKEWORD(2, 2);
 	WSADATA data;
 	WSAStartup(ver, &data);//在动态库中调用了winsoket的实现
 						   //由于WSAStartup函数是在动态库中，所以必须引用windows动态库
 						   // 一下编写socket代码
 						   //创建socket
+#endif //_WIN32
 	SOCKET _sock = socket(AF_INET, SOCK_STREAM, 0);
 	// 绑定地址
 	struct sockaddr_in _addr;
 	_addr.sin_family = AF_INET;
 	_addr.sin_port = htons(2020);
+
+#ifdef _WIN32
 	_addr.sin_addr.S_un.S_addr = inet_addr("127.0.0.1");
+#else
+	_addr.sin_addr.s_addr = inet_addr("192.168.31.112");
+#endif //_WIN32
 	
 	int ret = connect(_sock,(struct sockaddr *)&_addr,sizeof(struct sockaddr_in));
 	if (SOCKET_ERROR == ret) {
-		printf(" connect 连接服务端失败\n");
+		printf(" connect err\n");
+#ifdef _WIN32
 		closesocket(_sock);
+		WSACleanup();
+		return -1;
+#else
+		close(_sock);
+		return -1;
+#endif //_WIN32
 	}
 	else {
-		printf(" connect 连接服务端成功\n");
+		printf(" connect success\n");
 	}
 
-	int max_fd = _sock;
+	int max_fd = (int)_sock;
 	fd_set read_fds;
 	fd_set write_fds;
 	fd_set except_fds;
-	struct timeval tv = {1,0};
-
-	thread td(cmd_thread,_sock);
+	thread td(cmd_thread,(int)_sock);
 	td.detach();
 
 	while (g_exit_flag) {
@@ -201,22 +229,28 @@ int main(int argc, char * argv[])
 		FD_SET(_sock, &read_fds);
 		FD_SET(_sock, &read_fds);
 		FD_SET(_sock, &read_fds);
+		struct timeval tv = { 1,0 };
+
 		int ret = select(max_fd + 1,&read_fds,&write_fds,&except_fds,&tv);
 		if (ret < 0) {
 			printf("select is err\n");
 			continue;
 		}
 		if (FD_ISSET(_sock,&read_fds)) {
-			if (-1 == processor(_sock)) {
-				printf(" 客户端已断开\n");
+			if (-1 == processor((int)_sock)) {
+				printf(" Client disconnected\n");
 				break;
 			}
 			FD_CLR(_sock,&read_fds);
 		}
-		printf("空闲时间处理其他事务\n");
+	//	printf("空闲时间处理其他事务\n");
 	}
+#ifdef _WIN32
 	closesocket(_sock);
 	WSACleanup();
+#else
+	close(_sock);
+#endif //_WIN32
 	getchar();
 	return 0;
 }
