@@ -6,6 +6,7 @@
 	#include <WinSock2.h>
 	#include <stdio.h>
 	#pragma comment(lib,"ws2_32.lib") 
+
 #else
 	#include <unistd.h>
 	#include <sys/types.h>
@@ -35,6 +36,8 @@ enum CMD
 	CMD_LOGOUT_RESULT,
 	CMD_NEW_USER_JOIN,
 	CMD_NEW_USER_JOIN_RESULT,
+	CMD_EXIT,
+	CMD_EXIT_RESULT,
 	CMD_ERROR,
 	CMD_ERROR_RESULT
 };
@@ -251,6 +254,7 @@ int main(int argc, char * argv[])
 #else
 	close(_sock);
 #endif //_WIN32
+	printf("close fd : %d\n", _sock);
 	getchar();
 	return 0;
 }
