@@ -156,6 +156,10 @@
   <ItemGroup>
     <ClCompile Include="client.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="hps_message_header.hpp" />
+    <ClInclude Include="hps_tcp_client.hpp" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
