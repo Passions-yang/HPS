@@ -7,6 +7,12 @@
 	#include <windows.h>
 	#include <WinSock2.h>
 	#pragma comment(lib,"ws2_32.lib") 
+#elif _WIN64
+	#define WIN32_LEAN_AND_MEAN //屏蔽了很多原有的定义，因为下面两个头文件冲突
+	#define _WINSOCK_DEPRECATED_NO_WARNINGS //inet_ntoa 在新的socket通信中要使用inet_ntoa，就必须声明此宏
+	#define _CRT_SECURE_NO_WARNINGS
+	#include <windows.h>
+	#include <WinSock2.h>
 #else
 	#include <unistd.h>
 	#include <sys/types.h>
@@ -18,12 +24,13 @@
 	#define INVALID_SOCKET  (SOCKET)(~0)
 	#define SOCKET_ERROR            (-1)
 #endif /* _WIN32 */
+#ifdef _WIN64
+#endif
 
-
-#include "hps_message_header.hpp"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "hps_message_header.hpp"
 
 class hps_tcp_common
 {
@@ -40,7 +47,7 @@ public:
 		hps_close();
 	}
 	//初始化socket
-	int hps_init_socket()
+	SOCKET hps_init_socket()
 	{
 #ifdef _WIN32
 		WORD ver = MAKEWORD(2, 2);
@@ -54,7 +61,7 @@ public:
 		return _sock;
 	}
 	//连接服务端
-	int hps_connect(char *ip, unsigned int port)
+	int hps_connect(const char *ip, unsigned int port)
 	{
 		if (!hps_is_run()) {
 			hps_init_socket();
@@ -82,16 +89,19 @@ public:
 	void hps_close()
 	{
 		if (_sock != INVALID_SOCKET) {
-			printf("close fd : %d\n", _sock);
+			
 #ifdef _WIN32
+			printf("close fd : %lu\n", _sock);
 			closesocket(_sock);
 			_sock = INVALID_SOCKET;
 			WSACleanup();
+#elif _WIN64
+			printf("close fd : %llu\n", _sock);
 #else
 			close(_sock);
 			_sock = INVALID_SOCKET;
-#endif //_WIN32
 			printf("close fd : %d\n", _sock);
+#endif //_WIN32
 		}
 	}
 	// 判断是否连接
@@ -109,9 +119,13 @@ public:
 			FD_ZERO(&read_fds);
 			FD_SET(_sock, &read_fds);
 			struct timeval tv = { 1,0 };
-			int ret = select(_sock + 1, &read_fds, NULL, NULL, &tv);
+			int ret = select((SOCKET)_sock + 1, &read_fds, NULL, NULL, &tv);
 			if (ret < 0) {
+#if defined(_WIN32) || defined(_WIN64)
+				printf("<socket= %llu>select is err\n", _sock);
+#else
 				printf("<socket= %d>select is err\n", _sock);
+#endif
 				return false;
 			}
 			if (FD_ISSET(_sock, &read_fds)) {
@@ -134,11 +148,15 @@ public:
 		memset(recv_buff,0x00,sizeof(recv_buff));
 		ret = recv(_sock, recv_buff, sizeof(hps_data_header), 0);
 		if (ret <= 0) {
+#if defined(_WIN32) || defined(_WIN64)
+			printf("The client exits and the task ends fd: %llu\n", _sock);
+#else
 			printf("The client exits and the task ends fd: %d\n", _sock);
+#endif
 			return -1;
 		}
 		header = (hps_data_header *)recv_buff;
-		recv(_sock, recv_buff + sizeof(hps_data_header), header->datalen, 0);
+		recv(_sock, recv_buff + sizeof(hps_data_header), header->datalen - sizeof(hps_data_header), 0);
 		// 利用指针和子类继承的特性，将数据传下去。
 		hps_response_net_massage(header);
 		return 0;

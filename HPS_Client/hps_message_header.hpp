@@ -24,9 +24,11 @@ struct hps_login :public hps_data_header
 	hps_login() {
 		cmd = CMD_LOGIN;
 		datalen = sizeof(hps_login);
+		memset(buff,0x00,sizeof(buff));
 	}
 	char user[32];
 	char password[32];
+	char buff[1024];
 };
 struct hps_login_result :public hps_data_header
 {
